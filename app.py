@@ -1,229 +1,104 @@
-import streamlit as st
-import pandas as pd
-import sqlite3
-from io import BytesIO
-from datetime import date
+        metric_labels = {
+            "electricity_main": "Main Electricity (kWh/Units)",
+            "electricity_backup": "Backup Electricity (kWh/Units)",
+            "gas_ft3": "Gas (FT³)",
+            "gas_mmbtu": "Gas (MMBTU)",
+            "steam_kg": "Steam Production (KG)",
+            "water_liter": "Water Consumption (Liter)",
+            "boiler_diesel_liter": "Diesel for Boiler (Liter)",
+            "generator_diesel_liter": "Diesel for Generator (Liter)"
+        }
 
-st.set_page_config(
-    page_title="Cotton Web Utility App",
-    page_icon="🏭",
-    layout="wide"
-)
-
-DB_NAME = "cotton_web_reports.db"
-
-
-# Create database and table
-def init_db():
-    conn = sqlite3.connect(DB_NAME)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS reports (
-            report_date TEXT,
-            unit TEXT,
-            filename TEXT,
-            file_data BLOB,
-            uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (report_date, unit)
+        metric = st.selectbox(
+            "Select utility to plot",
+            options=list(metric_labels.keys()),
+            format_func=lambda x: metric_labels[x]
         )
-    """)
-    conn.commit()
-    conn.close()
 
+        plot_data = filtered.dropna(subset=[metric]).copy()
+        if plot_data.empty:
+            st.info("Selected utility ke liye is date range mein data available nahi hai.")
+        else:
+            plot_data["Date"] = plot_data["report_date"].dt.strftime("%d-%b-%Y")
+            fig_daily = px.line(
+                plot_data,
+                x="report_date",
+                y=metric,
+                color="unit",
+                markers=True,
+                title=f"Daily {metric_labels[metric]} — Unit Comparison"
+            )
+            fig_daily.update_layout(
+                xaxis_title="Report Date",
+                yaxis_title=metric_labels[metric],
+                legend_title="Unit"
+            )
+            st.plotly_chart(fig_daily, use_container_width=True)
 
-# Save report
-def save_report(report_date, unit, filename, file_data):
-    conn = sqlite3.connect(DB_NAME)
+            # Monthly totals / averages (aggregated from daily records)
+            plot_data["Month"] = plot_data["report_date"].dt.to_period("M").astype(str)
+            monthly = plot_data.groupby(["Month", "unit"], as_index=False)[metric].sum()
+            fig_monthly = px.bar(
+                monthly,
+                x="Month",
+                y=metric,
+                color="unit",
+                barmode="group",
+                title=f"Monthly {metric_labels[metric]} — Sum of Daily Reports"
+            )
+            fig_monthly.update_layout(xaxis_title="Month", yaxis_title=metric_labels[metric])
+            st.plotly_chart(fig_monthly, use_container_width=True)
 
-    conn.execute("""
-        INSERT OR REPLACE INTO reports
-        (report_date, unit, filename, file_data)
-        VALUES (?, ?, ?, ?)
-    """, (report_date, unit, filename, file_data))
+            # Yearly total
+            plot_data["Year"] = plot_data["report_date"].dt.year.astype(str)
+            yearly = plot_data.groupby(["Year", "unit"], as_index=False)[metric].sum()
+            fig_yearly = px.bar(
+                yearly,
+                x="Year",
+                y=metric,
+                color="unit",
+                barmode="group",
+                title=f"Yearly {metric_labels[metric]} — Sum of Daily Reports"
+            )
+            fig_yearly.update_layout(xaxis_title="Year", yaxis_title=metric_labels[metric])
+            st.plotly_chart(fig_yearly, use_container_width=True)
 
-    conn.commit()
-    conn.close()
-
-
-# Get saved reports
-def get_reports():
-    conn = sqlite3.connect(DB_NAME)
-
-    df = pd.read_sql_query("""
-        SELECT report_date, unit, filename, uploaded_at
-        FROM reports
-        ORDER BY report_date DESC
-    """, conn)
-
-    conn.close()
-    return df
-
-
-# Get report file
-def get_report(report_date, unit):
-    conn = sqlite3.connect(DB_NAME)
-
-    result = conn.execute("""
-        SELECT filename, file_data
-        FROM reports
-        WHERE report_date = ? AND unit = ?
-    """, (report_date, unit)).fetchone()
-
-    conn.close()
-    return result
-
-
-init_db()
-
-st.title("🏭 Cotton Web Utility Consumption App")
-st.subheader("Daily Utility Monitoring Dashboard")
-
-st.write("Welcome to Cotton Web Utility Monitoring System")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.info("🏢 Unit 3 - CW-03")
-
-with col2:
-    st.info("🏢 Unit 4 - CW-04")
+            st.subheader("📋 Filtered Daily Records")
+            st.dataframe(
+                filtered.sort_values("report_date", ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
 
 st.divider()
 
-st.header("📂 Upload Daily Excel Reports")
-
-report_date = st.date_input(
-    "Select Report Date",
-    value=date.today()
-)
-
-report_date_text = report_date.strftime("%Y-%m-%d")
-
-st.info(
-    f"📅 Selected Report Date: {report_date.strftime('%d-%m-%Y')}"
-)
-
-# Unit 3
-st.subheader("Unit 3 - CW-03")
-
-file_unit3 = st.file_uploader(
-    "Upload Unit 3 Excel File",
-    type=["xlsx", "xls"],
-    key="unit3"
-)
-
-if file_unit3 is not None:
-
-    st.write("Unit 3 Data Preview:")
-
-    try:
-        df_unit3 = pd.read_excel(
-            BytesIO(file_unit3.getvalue()),
-            header=None
-        )
-
-        st.dataframe(df_unit3, use_container_width=True)
-
-        if st.button("💾 Save Unit 3 Report"):
-
-            save_report(
-                report_date_text,
-                "CW-03",
-                file_unit3.name,
-                file_unit3.getvalue()
-            )
-
-            st.success(
-                f"Unit 3 report saved for {report_date.strftime('%d-%m-%Y')}!"
-            )
-
-    except Exception as e:
-        st.error(f"Error reading Unit 3 Excel file: {e}")
-
-st.divider()
-
-# Unit 4
-st.subheader("Unit 4 - CW-04")
-
-file_unit4 = st.file_uploader(
-    "Upload Unit 4 Excel File",
-    type=["xlsx", "xls"],
-    key="unit4"
-)
-
-if file_unit4 is not None:
-
-    st.write("Unit 4 Data Preview:")
-
-    try:
-        df_unit4 = pd.read_excel(
-            BytesIO(file_unit4.getvalue()),
-            header=None
-        )
-
-        st.dataframe(df_unit4, use_container_width=True)
-
-        if st.button("💾 Save Unit 4 Report"):
-
-            save_report(
-                report_date_text,
-                "CW-04",
-                file_unit4.name,
-                file_unit4.getvalue()
-            )
-
-            st.success(
-                f"Unit 4 report saved for {report_date.strftime('%d-%m-%Y')}!"
-            )
-
-    except Exception as e:
-        st.error(f"Error reading Unit 4 Excel file: {e}")
-
-st.divider()
-
-# Previously saved reports
+# ---------------- SAVED REPORTS ----------------
 st.header("📚 Previously Saved Reports")
-
 saved_reports = get_reports()
 
 if not saved_reports.empty:
-
-    st.dataframe(
-        saved_reports,
-        use_container_width=True,
-        hide_index=True
-    )
+    st.dataframe(saved_reports, use_container_width=True, hide_index=True)
 
     report_options = [
         f"{row['report_date']} | {row['unit']} | {row['filename']}"
         for _, row in saved_reports.iterrows()
     ]
 
-    selected_report = st.selectbox(
-        "Select a saved report to download",
-        report_options
-    )
+    selected_report = st.selectbox("Select a saved report to download", report_options)
+    selected_index = report_options.index(selected_report)
+    selected_row = saved_reports.iloc[selected_index]
 
-    if st.button("📥 Download Selected Report"):
-
-        selected_index = report_options.index(selected_report)
-        selected_row = saved_reports.iloc[selected_index]
-
-        result = get_report(
-            selected_row["report_date"],
-            selected_row["unit"]
+    result = get_report(selected_row["report_date"], selected_row["unit"])
+    if result:
+        filename, file_data = result
+        st.download_button(
+            label="📥 Download Selected Report",
+            data=file_data,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
-        if result:
-            filename, file_data = result
-
-            st.download_button(
-                label="Download Excel File",
-                data=file_data,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
 else:
     st.warning("No reports have been saved yet.")
 
 st.success("Cotton Web Utility App is Running!")
+
