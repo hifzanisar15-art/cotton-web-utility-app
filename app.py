@@ -27,7 +27,7 @@ def init_db():
             PRIMARY KEY (report_date, unit)
         )
     """)
-         # Daily extracted values for graphing
+    # Daily extracted values for graphing
     conn.execute("""
         CREATE TABLE IF NOT EXISTS utility_daily (
             report_date TEXT,
@@ -55,6 +55,7 @@ def save_report(report_date, unit, filename, file_data, metrics):
         (report_date, unit, filename, file_data)
         VALUES (?, ?, ?, ?)
     """, (report_date, unit, filename, file_data))
+
     conn.execute("""
         INSERT OR REPLACE INTO utility_daily
         (report_date, unit, electricity_main, electricity_backup,
@@ -104,7 +105,7 @@ def get_daily_data():
         SELECT * FROM utility_daily
         ORDER BY report_date ASC, unit
     """, conn)
-conn.close()
+    conn.close()
     if not df.empty:
         df["report_date"] = pd.to_datetime(df["report_date"], errors="coerce")
         df = df.dropna(subset=["report_date"])
@@ -130,7 +131,7 @@ def find_usage_value(df, label_text, usage_col=2):
     if df is None or df.empty:
         return None
 
- for _, row in df.iterrows():
+    for _, row in df.iterrows():
         description = " ".join(str(x) for x in row.tolist() if not pd.isna(x))
         if label_text.lower() in description.lower():
             if len(row) > usage_col:
@@ -159,7 +160,7 @@ def extract_metrics(file_bytes, unit):
         "gas_mmbtu": None,
         "steam_kg": None,
         "water_liter": None,
-         "boiler_diesel_liter": None,
+        "boiler_diesel_liter": None,
         "generator_diesel_liter": None
     }
 
@@ -214,7 +215,7 @@ file_unit3 = st.file_uploader(
 
 if file_unit3 is not None:
     try:
-              bytes3 = file_unit3.getvalue()
+        bytes3 = file_unit3.getvalue()
         df_unit3 = pd.read_excel(BytesIO(bytes3), sheet_name="Sheet4", header=None)
         st.write("Unit 3 Data Preview:")
         st.dataframe(df_unit3, use_container_width=True)
@@ -244,7 +245,7 @@ if file_unit4 is not None:
         st.write("Unit 4 Data Preview:")
         st.dataframe(df_unit4, use_container_width=True)
 
-             if st.button("💾 Save Unit 4 Report"):
+        if st.button("💾 Save Unit 4 Report"):
             metrics4 = extract_metrics(bytes4, "CW-04")
             save_report(report_date_text, "CW-04", file_unit4.name, bytes4, metrics4)
             st.success(f"Unit 4 report saved for {report_date.strftime('%d-%m-%Y')}!")
@@ -273,7 +274,7 @@ else:
     with filter_col2:
         date_range = st.date_input(
             "Select date range for analytics",
-             value=(daily_data["report_date"].min().date(),
+            value=(daily_data["report_date"].min().date(),
                    daily_data["report_date"].max().date())
         )
 
@@ -322,7 +323,7 @@ else:
             )
             st.plotly_chart(fig_daily, use_container_width=True)
 
- # Monthly totals / averages (aggregated from daily records)
+            # Monthly totals / averages (aggregated from daily records)
             plot_data["Month"] = plot_data["report_date"].dt.to_period("M").astype(str)
             monthly = plot_data.groupby(["Month", "unit"], as_index=False)[metric].sum()
             fig_monthly = px.bar(
@@ -351,7 +352,7 @@ else:
             st.plotly_chart(fig_yearly, use_container_width=True)
 
             st.subheader("📋 Filtered Daily Records")
-                 st.dataframe(
+            st.dataframe(
                 filtered.sort_values("report_date", ascending=False),
                 use_container_width=True,
                 hide_index=True
