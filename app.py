@@ -55,8 +55,7 @@ def save_report(report_date, unit, filename, file_data, metrics):
         (report_date, unit, filename, file_data)
         VALUES (?, ?, ?, ?)
     """, (report_date, unit, filename, file_data))
-
- conn.execute("""
+    conn.execute("""
         INSERT OR REPLACE INTO utility_daily
         (report_date, unit, electricity_main, electricity_backup,
          gas_ft3, gas_mmbtu, steam_kg, water_liter,
