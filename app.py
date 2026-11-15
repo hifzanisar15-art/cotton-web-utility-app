@@ -101,4 +101,3 @@ else:
     st.warning("No reports have been saved yet.")
 
 st.success("Cotton Web Utility App is Running!")
-
